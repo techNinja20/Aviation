@@ -1,6 +1,7 @@
 const express = require("express")
 const app = express()
 const PORT = 8798
+const crypto = require("crypto")
 
 const AIRPORTS = [
   {
@@ -115,11 +116,13 @@ const PAYMENTS = [
   },
 ]
 
-app.use(express.json()) // body parser
+app.use(express.json())
 
 app.get("/", (req, res) => {
   res.send("Hello World")
 })
+
+// AIRPORT
 
 app.get("/airports", (req, res) => {
   res.status(200).json({
@@ -135,7 +138,7 @@ app.get("/airport/:id", (req, res) => {
   const singleAirport = AIRPORTS.find((a) => a.id === Number(id))
 
   if (singleAirport === undefined) {
-    res.status(404).json({
+    res.status(400).json({
       status: false,
       message: "Invalid airport information",
     })
@@ -149,11 +152,36 @@ app.get("/airport/:id", (req, res) => {
   })
 })
 
+// AIRCRAFT
+
 app.get("/aircrafts", (req, res) => {
   res.status(200).json({
     status: true,
     message: "All aircrafts retrieved",
     data: AIRCRAFT,
+  })
+})
+
+app.post("/create/aircraft", (req, res) => {
+  const { aircraft_name, seat_capacity } = req.body
+
+  const reg = crypto.randomUUID()
+
+  const reg_number = reg.split("-")[0]
+
+  if (!aircraft_name || !seat_capacity) {
+    res.status(400).json({
+      status: false,
+      message: "Provide all necessary fields",
+    })
+    return
+  }
+
+  AIRCRAFT.push({ id: AIRCRAFT.length + 1, reg_number, ...req.body })
+
+  res.status(200).json({
+    status: true,
+    message: "Aircraft created",
   })
 })
 
@@ -163,7 +191,7 @@ app.get("/aircraft/:id", (req, res) => {
   const singleAircraft = AIRCRAFT.find((a) => a.id === Number(id))
 
   if (singleAircraft === undefined) {
-    res.status(404).json({
+    res.status(400).json({
       status: false,
       message: "Invalid aircraft information",
     })
@@ -176,6 +204,29 @@ app.get("/aircraft/:id", (req, res) => {
     data: singleAircraft,
   })
 })
+
+app.delete("/delete/aircraft/:id", (req, res) => {
+  const { id } = req.params
+
+  const checkIfExists = AIRCRAFT.findIndex((ele) => ele.id === Number(id))
+
+  if (checkIfExists === -1) {
+    res.status(400).json({
+      status: false,
+      message:"Invalid ID provided"
+    })
+    return
+  }
+
+  AIRCRAFT.splice(checkIfExists,1)
+
+  res.status(200).json({
+    status: true,
+    message: "Aircraft deleted successfully",
+  })
+})
+
+// USER
 
 app.get("/users", (req, res) => {
   res.status(200).json({
@@ -191,7 +242,7 @@ app.get("/user/:id", (req, res) => {
   const singleuser = USERS.find((a) => a.id === Number(id))
 
   if (singleuser === undefined) {
-    res.status(404).json({
+    res.status(400).json({
       status: false,
       message: "Invalid user information",
     })
@@ -205,11 +256,11 @@ app.get("/user/:id", (req, res) => {
   })
 })
 
-app.post("/create", (req, res) => {
+app.post("/create/user", (req, res) => {
   const { full_name, email, password } = req.body
 
   if (!full_name || !email || !password) {
-    res.status(404).json({
+    res.status(400).json({
       status: false,
       message: "All fields are required",
     })
@@ -218,10 +269,8 @@ app.post("/create", (req, res) => {
 
   const checkIfUserExists = USERS.find((ele) => ele.email === email)
 
-  console.log("checkIfUserExists:", checkIfUserExists)
-
   if (checkIfUserExists) {
-    res.status(404).json({
+    res.status(400).json({
       status: false,
       message: "User exists, Please signup with a different email",
     })
