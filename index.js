@@ -213,12 +213,12 @@ app.delete("/delete/aircraft/:id", (req, res) => {
   if (checkIfExists === -1) {
     res.status(400).json({
       status: false,
-      message:"Invalid ID provided"
+      message: "Invalid ID provided",
     })
     return
   }
 
-  AIRCRAFT.splice(checkIfExists,1)
+  AIRCRAFT.splice(checkIfExists, 1)
 
   res.status(200).json({
     status: true,
@@ -286,6 +286,36 @@ app.post("/create/user", (req, res) => {
     message: "User created successfully",
   })
 })
+
+app.patch("/update/user/:userId", (req, res) => {
+  const { userId } = req.params
+
+  const userDetailsToBeUpdated = USERS.find((u) => u.id === Number(userId))
+
+  if (!userDetailsToBeUpdated) {
+    return res.status(400).json({
+      status: false,
+      message: "User not found",
+    })
+  }
+  const { email, ...rest } = req.body
+  const bodyDetails = rest
+  const allUpdates = Object.entries(bodyDetails)
+
+  allUpdates.map((data) => {
+    return (userDetailsToBeUpdated[data[0]] = data[1])
+  })
+
+  // if (full_name) userDetailsToBeUpdated.full_name = full_name
+  // if (password) userDetailsToBeUpdated.password = password
+
+  res.status(200).json({
+    status: true,
+    message: "User updated successfully",
+  })
+})
+
+// NOT FOUND
 
 app.use((req, res) => {
   res.status(404).json({
