@@ -2,6 +2,7 @@ const express = require("express")
 const app = express()
 const PORT = 8798
 const crypto = require("crypto")
+const Joi = require("joi")
 
 const AIRPORTS = [
   {
@@ -118,6 +119,50 @@ const PAYMENTS = [
 
 app.use(express.json())
 
+const userSchema = Joi.object({
+  full_name: Joi.string().min(3).max(30).trim().required(),
+  password: Joi.string()
+    .pattern(new RegExp("^[a-zA-Z0-9]{3,30}$"))
+    .trim()
+    .required(),
+  email: Joi.string()
+    .email({
+      minDomainSegments: 2,
+      tlds: { allow: ["com", "net"] },
+    })
+    .trim()
+    .required(),
+})
+const aircraftSchema = Joi.object({
+  aircraft_name: Joi.string().min(3).max(30).trim().messages({
+    'string.base': 'Aircraft name must be a valid text string.',
+    'string.empty': 'Aircraft name cannot be empty.',
+    'string.min': 'Aircraft name must be at least 3 characters long.',
+    'string.max': 'Aircraft name cannot exceed 30 characters.',
+    'any.required': 'Aircraft name is required.'
+  }).required(),
+seat_capacity: Joi.number().integer().min(100).required()
+})
+
+
+function validationMiddleWare(schema) {
+
+  return (req, res, next) => {
+    const { value, error } = schema.validate(req.body)
+    if (error) {
+      res.status(400).json({
+        status: false,
+        message: error.details.map((data) => data.message).join(""),
+      })
+      return
+    }
+
+    req.body = value
+
+    next()
+  }
+}
+
 app.get("/", (req, res) => {
   res.send("Hello World")
 })
@@ -162,20 +207,12 @@ app.get("/aircrafts", (req, res) => {
   })
 })
 
-app.post("/create/aircraft", (req, res) => {
+app.post("/create/aircraft", validationMiddleWare(aircraftSchema), (req, res) => {
   const { aircraft_name, seat_capacity } = req.body
 
   const reg = crypto.randomUUID()
 
   const reg_number = reg.split("-")[0]
-
-  if (!aircraft_name || !seat_capacity) {
-    res.status(400).json({
-      status: false,
-      message: "Provide all necessary fields",
-    })
-    return
-  }
 
   AIRCRAFT.push({ id: AIRCRAFT.length + 1, reg_number, ...req.body })
 
@@ -256,18 +293,12 @@ app.get("/user/:id", (req, res) => {
   })
 })
 
-app.post("/create/user", (req, res) => {
-  const { full_name, email, password } = req.body
+app.post("/create/user", validationMiddleWare(userSchema), (req, res) => {
+  // const { full_name, email, password } = req.body
 
-  if (!full_name || !email || !password) {
-    res.status(400).json({
-      status: false,
-      message: "All fields are required",
-    })
-    return
-  }
-
-  const checkIfUserExists = USERS.find((ele) => ele.email === email)
+  const checkIfUserExists = USERS.find((ele) => {
+    return ele.email === req.body.email
+  })
 
   if (checkIfUserExists) {
     res.status(400).json({
@@ -327,3 +358,4 @@ app.use((req, res) => {
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`)
 })
+ 
