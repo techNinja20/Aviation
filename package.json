@@ -10,8 +10,10 @@
   "author": "",
   "license": "ISC",
   "description": "",
+  "type":"commonjs",
   "dependencies": {
     "express": "^5.3.0",
+    "mysql2": "^3.24.6",
     "nodemon": "^3.1.14"
   }
 }

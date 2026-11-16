@@ -1,31 +1,41 @@
-const express = require("express")
-const app = express()
-const PORT = 8798
-const crypto = require("crypto")
+const express = require("express");
+const app = express();
+const PORT = 8798;
+const crypto = require("crypto");
+const mysql = require("mysql2/promise");
 
-const AIRPORTS = [
-  {
-    id: 1,
-    airport_name: "JFK",
-    city: "New York",
-    country: "United States of America",
-    country_code: "USA",
-  },
-  {
-    id: 2,
-    airport_name: "Muritala International",
-    city: "Lagos",
-    country: "Nigeria",
-    country_code: "NGN",
-  },
-  {
-    id: 3,
-    airport_name: "Ercan",
-    city: "Famagusta",
-    country: "Turkey",
-    country_code: "TRNC",
-  },
-]
+// Create the connection to database
+const mysqlConnection = mysql.createPool({
+  host: "localhost",
+  user: "root",
+  password: "root",
+  database: "Aviator",
+  port: 8889,
+});
+
+// const AIRPORTS = [
+//   {
+//     id: 1,
+//     airport_name: "JFK",
+//     city: "New York",
+//     country: "United States of America",
+//     country_code: "USA",
+//   },
+//   {
+//     id: 2,
+//     airport_name: "Muritala International",
+//     city: "Lagos",
+//     country: "Nigeria",
+//     country_code: "NGN",
+//   },
+//   {
+//     id: 3,
+//     airport_name: "Ercan",
+//     city: "Famagusta",
+//     country: "Turkey",
+//     country_code: "TRNC",
+//   },
+// ];
 
 const AIRCRAFT = [
   {
@@ -46,7 +56,7 @@ const AIRCRAFT = [
     seat_capacity: 300,
     reg_number: "094ZHT",
   },
-]
+];
 
 const USERS = [
   {
@@ -67,7 +77,7 @@ const USERS = [
     email: "bl@gmail.com",
     password: "Password3",
   },
-]
+];
 
 const FLIGHTS = [
   {
@@ -80,7 +90,7 @@ const FLIGHTS = [
     status: "pending",
     arrival_time: "2026-12-30",
   },
-]
+];
 
 const BOOKINGS = [
   {
@@ -97,7 +107,7 @@ const BOOKINGS = [
     status: "awaiting",
     booking_ref: "987656",
   },
-]
+];
 
 const PAYMENTS = [
   {
@@ -114,43 +124,104 @@ const PAYMENTS = [
     status: "paid",
     payment_ref: "fbmfjngjbngjng",
   },
-]
+];
 
-app.use(express.json())
+app.use(express.json()); // middleware to parse incoming JSON requests
 
 app.get("/", (req, res) => {
-  res.send("Hello World")
-})
+  res.send("Hello World");
+});
 
 // AIRPORT
+app.post("/create/airport", async (req, res) => {
+  const { airport_name, city, country, country_code } = req.body;
+  try{
+    const checkAirportSqlQuery = "SELECT * FROM `Airport` WHERE airport_name = ?";
+    const [checkResults, checkFields] = await mysqlConnection.query(checkAirportSqlQuery, [airport_name]);
 
-app.get("/airports", (req, res) => {
-  res.status(200).json({
-    status: true,
-    message: "All airports retrieved",
-    data: AIRPORTS,
-  })
-})
+    if (checkResults.length > 0) {
+      throw new Error("Airport already exists");
+    }
 
-app.get("/airport/:id", (req, res) => {
-  const { id } = req.params
+    const airportId = crypto.randomUUID(); // Generate a unique ID for the airport
 
-  const singleAirport = AIRPORTS.find((a) => a.id === Number(id))
+    const sqlQuery = "INSERT INTO `Airport` (airport_id, airport_name, city, country, country_code) VALUES (?, ?, ?, ?, ?)";
+    const [results, fields] = await mysqlConnection.query(sqlQuery, [airportId, airport_name, city, country, country_code]);
 
-  if (singleAirport === undefined) {
+    res.status(200).json({
+      status: true,
+      message: "Airport created successfully",
+    });
+
+  }catch(error){
     res.status(400).json({
       status: false,
-      message: "Invalid airport information",
-    })
-    return
+      message: error.message,
+    });
   }
+})
 
+
+
+app.get("/airports", async (req, res) => {
+  try {
+    // const sqlQuery = "SELECT * FROM `Airport`";
+    const [results, fields] = await mysqlConnection.query("SELECT * FROM `Airport`");
+
+    if (results.length === 0) {
+      throw new Error("No airports found");
+    }
+
+    res.status(200).json({
+      status: true,
+      message: "All airports retrieved",
+      data: results,
+    });
+  } catch (error) {
+    res.status(400).json({
+      status: false,
+      message: error.message,
+    });
+  }
+});
+
+app.get("/airport/:id", async(req, res) => {
+  const { id } = req.params;
+try{
+  const sqlQuery = "SELECT * FROM `Airport` WHERE airport_id = ?";
+  const [results, fields] = await mysqlConnection.query(sqlQuery, [id]);
+
+  if(results.length === 0){
+    throw new Error("Invalid airport information");
+  }
+  console.log("see",results); // results contains rows returned by server
+  console.log(fields); // fields contains extra meta data about results, if available
+  
   res.status(200).json({
     status: true,
     message: "Airport retrieved",
-    data: singleAirport,
-  })
-})
+    data: results,
+  });
+}catch(error){
+  res.status(400).json({
+    status: false,
+    message: error.message,
+  });
+}
+
+  // const singleAirport = AIRPORTS.find((a) => a.id === Number(id));
+  // console.log("see", singleAirport);
+
+  // if (singleAirport === undefined) {
+  //   res.status(400).json({
+  //     status: false,
+  //     message: "Invalid airport information",
+  //   });
+  //   return;
+  // }
+
+  
+});
 
 // AIRCRAFT
 
@@ -159,72 +230,72 @@ app.get("/aircrafts", (req, res) => {
     status: true,
     message: "All aircrafts retrieved",
     data: AIRCRAFT,
-  })
-})
+  });
+});
 
 app.post("/create/aircraft", (req, res) => {
-  const { aircraft_name, seat_capacity } = req.body
+  const { aircraft_name, seat_capacity } = req.body;
 
-  const reg = crypto.randomUUID()
+  const reg = crypto.randomUUID();
 
-  const reg_number = reg.split("-")[0]
+  const reg_number = reg.split("-")[0];
 
   if (!aircraft_name || !seat_capacity) {
     res.status(400).json({
       status: false,
       message: "Provide all necessary fields",
-    })
-    return
+    });
+    return;
   }
 
-  AIRCRAFT.push({ id: AIRCRAFT.length + 1, reg_number, ...req.body })
+  AIRCRAFT.push({ id: AIRCRAFT.length + 1, reg_number, ...req.body });
 
   res.status(200).json({
     status: true,
     message: "Aircraft created",
-  })
-})
+  });
+});
 
 app.get("/aircraft/:id", (req, res) => {
-  const { id } = req.params
+  const { id } = req.params;
 
-  const singleAircraft = AIRCRAFT.find((a) => a.id === Number(id))
+  const singleAircraft = AIRCRAFT.find((a) => a.id === Number(id));
 
   if (singleAircraft === undefined) {
     res.status(400).json({
       status: false,
       message: "Invalid aircraft information",
-    })
-    return
+    });
+    return;
   }
 
   res.status(200).json({
     status: true,
     message: "Aircraft retrieved",
     data: singleAircraft,
-  })
-})
+  });
+});
 
 app.delete("/delete/aircraft/:id", (req, res) => {
-  const { id } = req.params
+  const { id } = req.params;
 
-  const checkIfExists = AIRCRAFT.findIndex((ele) => ele.id === Number(id))
+  const checkIfExists = AIRCRAFT.findIndex((ele) => ele.id === Number(id));
 
   if (checkIfExists === -1) {
     res.status(400).json({
       status: false,
       message: "Invalid ID provided",
-    })
-    return
+    });
+    return;
   }
 
-  AIRCRAFT.splice(checkIfExists, 1)
+  AIRCRAFT.splice(checkIfExists, 1);
 
   res.status(200).json({
     status: true,
     message: "Aircraft deleted successfully",
-  })
-})
+  });
+});
 
 // USER
 
@@ -233,78 +304,78 @@ app.get("/users", (req, res) => {
     status: true,
     message: "All users retrieved",
     data: USERS,
-  })
-})
+  });
+});
 
 app.get("/user/:id", (req, res) => {
-  const { id } = req.params
+  const { id } = req.params;
 
-  const singleuser = USERS.find((a) => a.id === Number(id))
+  const singleuser = USERS.find((a) => a.id === Number(id));
 
   if (singleuser === undefined) {
     res.status(400).json({
       status: false,
       message: "Invalid user information",
-    })
-    return
+    });
+    return;
   }
 
   res.status(200).json({
     status: true,
     message: "User retrieved",
     data: singleuser,
-  })
-})
+  });
+});
 
 app.post("/create/user", (req, res) => {
-  const { full_name, email, password } = req.body
+  const { full_name, email, password } = req.body;
 
   if (!full_name || !email || !password) {
     res.status(400).json({
       status: false,
       message: "All fields are required",
-    })
-    return
+    });
+    return;
   }
 
-  const checkIfUserExists = USERS.find((ele) => ele.email === email)
+  const checkIfUserExists = USERS.find((ele) => ele.email === email);
 
   if (checkIfUserExists) {
     res.status(400).json({
       status: false,
       message: "User exists, Please signup with a different email",
-    })
-    return
+    });
+    return;
   }
 
-  const details = { id: USERS.length + 1, ...req.body }
+  const details = { id: USERS.length + 1, ...req.body };
 
-  USERS.push(details)
+  USERS.push(details);
 
   res.status(200).json({
     status: true,
     message: "User created successfully",
-  })
-})
+  });
+});
 
 app.patch("/update/user/:userId", (req, res) => {
-  const { userId } = req.params
+  const { userId } = req.params;
 
-  const userDetailsToBeUpdated = USERS.find((u) => u.id === Number(userId))
+  const userDetailsToBeUpdated = USERS.find((u) => u.id === Number(userId));
 
   if (!userDetailsToBeUpdated) {
     return res.status(400).json({
       status: false,
       message: "User not found",
-    })
+    });
   }
-  const { email, ...rest } = req.body
-  const bodyDetails = rest
-  const allUpdates = Object.entries(bodyDetails)
+  const { email, ...rest } = req.body;
+  const bodyDetails = rest;
+  const allUpdates = Object.entries(bodyDetails);
 
   allUpdates.map((data) => {
-    return (userDetailsToBeUpdated[data[0]] = data[1])
-  })
+    return (userDetailsToBeUpdated[data[0]] = data[1]);
+  });
 
   // if (full_name) userDetailsToBeUpdated.full_name = full_name
   // if (password) userDetailsToBeUpdated.password = password
@@ -312,8 +383,8 @@ app.patch("/update/user/:userId", (req, res) => {
   res.status(200).json({
     status: true,
     message: "User updated successfully",
-  })
-})
+  });
+});
 
 // NOT FOUND
 
@@ -321,9 +392,15 @@ app.use((req, res) => {
   res.status(404).json({
     status: false,
     message: "Seems you got lost 🙃",
-  })
-})
+  });
+});
 
 app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`)
-})
+  console.log(`Server is running on http://localhost:${PORT}`);
+});
+
+// npm install --save mysql2
+// npm install -S psckage
+
+// npm install --dev psckage
+// npm install -D psckage
