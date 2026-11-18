@@ -135,9 +135,13 @@ app.get("/", (req, res) => {
 // AIRPORT
 app.post("/create/airport", async (req, res) => {
   const { airport_name, city, country, country_code } = req.body;
-  try{
-    const checkAirportSqlQuery = "SELECT * FROM `Airport` WHERE airport_name = ?";
-    const [checkResults, checkFields] = await mysqlConnection.query(checkAirportSqlQuery, [airport_name]);
+  try {
+    const checkAirportSqlQuery =
+      "SELECT * FROM `Airport` WHERE airport_name = ?";
+    const [checkResults, checkFields] = await mysqlConnection.query(
+      checkAirportSqlQuery,
+      [airport_name],
+    );
 
     if (checkResults.length > 0) {
       throw new Error("Airport already exists");
@@ -145,28 +149,34 @@ app.post("/create/airport", async (req, res) => {
 
     const airportId = crypto.randomUUID(); // Generate a unique ID for the airport
 
-    const sqlQuery = "INSERT INTO `Airport` (airport_id, airport_name, city, country, country_code) VALUES (?, ?, ?, ?, ?)";
-    const [results, fields] = await mysqlConnection.query(sqlQuery, [airportId, airport_name, city, country, country_code]);
+    const sqlQuery =
+      "INSERT INTO `Airport` (airport_id, airport_name, city, country, country_code) VALUES (?, ?, ?, ?, ?)";
+    const [results, fields] = await mysqlConnection.query(sqlQuery, [
+      airportId,
+      airport_name,
+      city,
+      country,
+      country_code,
+    ]);
 
     res.status(200).json({
       status: true,
       message: "Airport created successfully",
     });
-
-  }catch(error){
+  } catch (error) {
     res.status(400).json({
       status: false,
       message: error.message,
     });
   }
-})
-
-
+});
 
 app.get("/airports", async (req, res) => {
   try {
     // const sqlQuery = "SELECT * FROM `Airport`";
-    const [results, fields] = await mysqlConnection.query("SELECT * FROM `Airport`");
+    const [results, fields] = await mysqlConnection.query(
+      "SELECT * FROM `Airport`",
+    );
 
     if (results.length === 0) {
       throw new Error("No airports found");
@@ -185,29 +195,29 @@ app.get("/airports", async (req, res) => {
   }
 });
 
-app.get("/airport/:id", async(req, res) => {
+app.get("/airport/:id", async (req, res) => {
   const { id } = req.params;
-try{
-  const sqlQuery = "SELECT * FROM `Airport` WHERE airport_id = ?";
-  const [results, fields] = await mysqlConnection.query(sqlQuery, [id]);
+  try {
+    const sqlQuery = "SELECT * FROM `Airport` WHERE airport_id = ?";
+    const [results, fields] = await mysqlConnection.query(sqlQuery, [id]);
 
-  if(results.length === 0){
-    throw new Error("Invalid airport information");
+    if (results.length === 0) {
+      throw new Error("Invalid airport information");
+    }
+    console.log("see", results); // results contains rows returned by server
+    console.log(fields); // fields contains extra meta data about results, if available
+
+    res.status(200).json({
+      status: true,
+      message: "Airport retrieved",
+      data: results,
+    });
+  } catch (error) {
+    res.status(400).json({
+      status: false,
+      message: error.message,
+    });
   }
-  console.log("see",results); // results contains rows returned by server
-  console.log(fields); // fields contains extra meta data about results, if available
-  
-  res.status(200).json({
-    status: true,
-    message: "Airport retrieved",
-    data: results,
-  });
-}catch(error){
-  res.status(400).json({
-    status: false,
-    message: error.message,
-  });
-}
 
   // const singleAirport = AIRPORTS.find((a) => a.id === Number(id));
   // console.log("see", singleAirport);
@@ -219,10 +229,79 @@ try{
   //   });
   //   return;
   // }
-
-  
 });
 
+// previous Update
+app.put("/update/airport/:id", async (req, res) => {
+  const { id } = req.params;
+  const { airport_name, city, country, country_code } = req.body;
+
+  try {
+    const sqlQuery =
+      "UPDATE `Airport` SET airport_name = ?, city = ?, country = ?, country_code = ? WHERE airport_id = ?";
+    const [results, fields] = await mysqlConnection.query(sqlQuery, [
+      airport_name,
+      city,
+      country,
+      country_code,
+      id,
+    ]);
+
+    if (results.affectedRows === 0) {
+      throw new Error("Invalid airport information");
+    }
+
+    res.status(200).json({
+      status: true,
+      message: "Airport updated successfully",
+    });
+  } catch (error) {
+    res.status(400).json({
+      status: false,
+      message: error.message,
+    });
+  }
+});
+
+// Latest Update
+app.put("/update/airport/:id", async (req, res) => {
+  const { id } = req.params;
+  const { body } = req;
+
+  try {
+    const fieldsToUpdate = Object.keys(body); // airport_name, city, country, country_code
+    const valuesToUpdate = Object.values(body); //MM
+
+    const pickingAllKeys = fieldsToUpdate
+      .map((key) => {
+        return [`${key} = ?`];
+      })
+      .join(", "); // airport_name = ?, city =?, country, country_code
+    const queryies = `UPDATE Airport SET ${pickingAllKeys} WHERE airport_id = ?`;
+
+    const setClause = fieldsToUpdate.map((field) => `${field} = ?`).join(", ");
+    const sqlQuery = `UPDATE \`Airport\` SET ${setClause} WHERE airport_id = ?`;
+
+    const [results, fields] = await mysqlConnection.query(sqlQuery, [
+      ...valuesToUpdate,
+      id,
+    ]);
+
+    if (results.affectedRows === 0) {
+      throw new Error("Invalid airport information");
+    }
+
+    res.status(200).json({
+      status: true,
+      message: "Airport updated successfully",
+    });
+  } catch (error) {
+    res.status(400).json({
+      status: false,
+      message: error.message,
+    });
+  }
+});
 // AIRCRAFT
 
 app.get("/aircrafts", (req, res) => {
@@ -279,22 +358,27 @@ app.get("/aircraft/:id", (req, res) => {
 app.delete("/delete/aircraft/:id", (req, res) => {
   const { id } = req.params;
 
-  const checkIfExists = AIRCRAFT.findIndex((ele) => ele.id === Number(id));
+  try {
+    // const checkIfExists = AIRCRAFT.findIndex((ele) => ele.id === Number(id));
+    const sqlQuery = "DELETE FROM `Aircraft` WHERE aircraft_id = ?";  
+    const [results, fields] = mysqlConnection.query(sqlQuery, [id]);
 
-  if (checkIfExists === -1) {
-    res.status(400).json({
-      status: false,
-      message: "Invalid ID provided",
+    if (results === -1) {
+      throw new Error("Aircraft not found");
+    }
+
+    // AIRCRAFT.splice(results, 1);
+
+    res.status(200).json({
+      status: true,
+      message: "Aircraft deleted successfully",
     });
-    return;
+  } catch (error) {
+    res.status(500).json({
+      status: false,
+      message: error.message,
+    });
   }
-
-  AIRCRAFT.splice(checkIfExists, 1);
-
-  res.status(200).json({
-    status: true,
-    message: "Aircraft deleted successfully",
-  });
 });
 
 // USER
@@ -404,3 +488,14 @@ app.listen(PORT, () => {
 
 // npm install --dev psckage
 // npm install -D psckage
+
+// // first approach to create a user
+// const firstName = req.body.firstName;
+// const lastName = req.body.lastName;
+// const email = req.body.email;
+
+// // seecond approach to create a user
+// const { firstName, lastName, email } = req.body;
+
+// // third approach to create a user
+// const {body} = req;
