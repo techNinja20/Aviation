@@ -5,6 +5,7 @@ const crypto = require("crypto");
 const mysql = require("mysql2/promise");
 const { v4 : uuidv4 } = require('uuid');
 const Joi = require('joi');
+const bcrypt = require("bcryptjs")
 
 app.use(express.json()); // middleware to parse incoming JSON requests
 // Create the connection to database
@@ -16,6 +17,40 @@ const mysqlConnection = mysql.createPool({
   port: 8889,
 });
 
+
+function validationMiddleWare(AnyTableToBeValidated) {
+
+  return (req, res, next) => {
+    const { value, error } = AnyTableToBeValidated.validate(req.body)
+    if (error) {
+      res.status(400).json({
+        status: false,
+        message: error.details.map((data) => data.message).join(""),
+      })
+      return
+    }
+
+    req.body = value
+
+    next()
+  }
+}
+
+
+ const userSchema = Joi.object({
+  firstName: Joi.string().required(),
+  lastName: Joi.string().required(),
+  otherName: Joi.string().required(),
+  email: Joi.string().email().required(),
+    //  email: Joi.string().email({
+    //     minDomainSegments: 2,
+    //     tlds: { allow: ['com', 'net'] },
+    // }),
+  password: Joi.string().required(),
+  phone: Joi.string().required(),
+  address: Joi.string().optional(),
+  state: Joi.string().optional()
+});
 
 
  const AirportSchema = Joi.object({
@@ -31,29 +66,33 @@ const mysqlConnection = mysql.createPool({
   }),
 });
 
+
+
 app.get("/", (req, res) => {
   res.send("Hello World");
 });
 
 // AIRPORT
-app.post("/create/airport", async (req, res) => {
+app.post("/create/airport",validationMiddleWare(AirportSchema), async (req, res) => {
   
   const { airport_name, city, country, country_code } = req.body;
+  console.log("request", req.body)
 
   try {
-  const validateResult = AirportSchema.validate({ airport_name, city, country, country_code });
-  // console.log("see", validateResult.error.details[0].message);
+  // const {value, error} = AirportSchema.validate({ airport_name, city, country, country_code });
+  // console.log("see oo", value.airport_name)
+  // // console.log("see", validateResult.error.details[0].message);
 
-  if (validateResult.error) {
-    throw new Error(validateResult.error.details[0].message);
-  }
+  // if (error) {
+  //   throw new Error(error.details[0].message);
+  // }
 
 
     const checkAirportSqlQuery =
       "SELECT * FROM `Airport` WHERE airport_name = ?";
     const [checkResults, checkFields] = await mysqlConnection.query(
       checkAirportSqlQuery,
-      [airport_name],
+      [value.airport_name],
     );
 
     if (checkResults.length > 0) {
@@ -66,10 +105,10 @@ app.post("/create/airport", async (req, res) => {
     const sqlQuery = "INSERT INTO `Airport` (airport_id, airport_name, city, country, country_code) VALUES (?, ?, ?, ?, ?)";
     const [results, fields] = await mysqlConnection.query(sqlQuery, [
       airportId,
-      airport_name,
-      city,
-      country,
-      country_code,
+      value.airport_name,
+      value.city,
+      value.country,
+      value.country_code,
     ]);
 
     res.status(200).json({
@@ -321,35 +360,49 @@ app.get("/user/:id", (req, res) => {
   });
 });
 
-app.post("/create/user", (req, res) => {
-  const { full_name, email, password } = req.body;
+// user register (firstName, lastName, otherName, email, password, phone)
+// user login (email, password)
+app.post("/create/user", validationMiddleWare(userSchema), async(req, res) => {
+  const { firstName, lastName, otherName, email, password, phone } = req.body;
 
-  if (!full_name || !email || !password) {
-    res.status(400).json({
-      status: false,
-      message: "All fields are required",
-    });
-    return;
-  }
+  try {
+    const sqlQuery = "SELECT * FROM User WHERE email = ?"
+    const [checkIfUserExist] = await mysqlConnection.query(sqlQuery, [email])
+    
+    if(checkIfUserExist.length > 0) {
+      throw new Error("User Already exist with this email")
+    }
+    
+    // Store hash in your password DB
+    const salt = bcrypt.genSaltSync(10);
+    const hash = bcrypt.hashSync(password, salt);
 
-  const checkIfUserExists = USERS.find((ele) => ele.email === email);
+    const userId = uuidv4()
 
-  if (checkIfUserExists) {
-    res.status(400).json({
-      status: false,
-      message: "User exists, Please signup with a different email",
-    });
-    return;
-  }
+    
+    const insertSqlQuery = 
+    "INSERT INTO User(user_id,firstName,lastName,otherName,email,passwordSalt,passwordHash,phone)VALUES(?,?,?,?,?,?,?,?)";
+    const [results] = await mysqlConnection.query(insertSqlQuery, [userId,firstName,lastName,otherName,email,salt,hash,phone])
+    console.log("results", results)
 
-  const details = { id: USERS.length + 1, ...req.body };
+    if(results.affectedRows === 0) {
+      throw new Error("Unable to insert")
+    }
 
-  USERS.push(details);
-
-  res.status(200).json({
+     res.status(200).json({
     status: true,
     message: "User created successfully",
   });
+  } catch (error) {
+     res.status(500).json({
+    status: false,
+    message: error.message,
+  });
+  }
+
+
+
+
 });
 
 app.patch("/update/user/:userId", (req, res) => {
