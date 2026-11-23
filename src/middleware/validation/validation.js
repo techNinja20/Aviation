@@ -1,4 +1,4 @@
-export function validationMiddleWare(AnyTableToBeValidated) {
+ function validationMiddleWare(AnyTableToBeValidated) {
 
   return (req, res, next) => {
     const { value, error } = AnyTableToBeValidated.validate(req.body)
@@ -14,4 +14,7 @@ export function validationMiddleWare(AnyTableToBeValidated) {
 
     next()
   }
+}
+module.exports = {
+  validationMiddleWare
 }
