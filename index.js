@@ -15,7 +15,7 @@ const connectToDatabase = async () => {
     console.log("Database connected successfuly")
     responseFromDbConnection.release()
   } catch (error) {
-    console.log("Error: ", error.message)
+    console.log("Error: ", error)
   }
 }
 
